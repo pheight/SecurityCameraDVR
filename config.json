@@ -1,0 +1,9 @@
+{
+  "camera": {
+    "url_pre": "TYPE OF CONNECTION",
+    "url_post": "URL OR IP OF CAMERA",
+    "port": "PORT FOR CAMERA",
+    "user": "USER",
+    "password": "PASSWORD"
+  }
+}
