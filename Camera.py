@@ -7,6 +7,12 @@ import os.path
 import json
 
 
+motion_count = 0
+main_path = "C:\\Users\\pheig\\Documents\\GitHub\\video\\"
+directory = ""
+timestamp = datetime.now()
+
+
 def connection_string():
     with open("config_test.json") as json_data_file:
         data = json.load(json_data_file)
@@ -56,13 +62,47 @@ def resize_frame(frame, resize):
     frame = cv2.resize(frame, dim)
     return frame
 
+
+# Video Generating function
+# todo make this async causing video to stutter
+# todo need to figure out how to make longer clips
+def generate_video():
+    image_folder = directory # make sure to use your folder
+    video_name = 'capture.avi'
+    os.chdir(image_folder)
+
+    images = [img for img in os.listdir(image_folder)
+              if img.endswith(".jpg") or
+              img.endswith(".jpeg") or
+              img.endswith("png")]
+
+    # Array images should only consider
+    # the image files ignoring others if any
+    print(images)
+
+    frame = cv2.imread(os.path.join(image_folder, images[0]))
+
+    # setting the frame width, height width
+    # the width, height of first image
+    height, width, layers = frame.shape
+
+    fourcc = cv2.VideoWriter_fourcc(*'XVID')
+    video = cv2.VideoWriter(video_name, fourcc, 20.0, (width, height))
+
+    # Appending the images to the video one by one
+    for image in images:
+        video.write(cv2.imread(os.path.join(image_folder, image)))
+
+        # Deallocating memories taken for window creation
+    cv2.destroyAllWindows()
+    video.release()  # releasing the video generated
+
+
 # Make empty frame objects using an empty list and np.array
 list = []
 gray2 = np.array(list)
 image_mask = np.array(list)
 
-motion_count = 0
-directory = ""
 
 # Establish connection to the webcam
 connection = connection_string()
@@ -117,20 +157,27 @@ while True:
         # set motion capture back to 0
         motion_count = 0
 
-    print(motion_count)
 
     # If motion is for longer than 10 frames begin capturing
-    # todo use timestamp to determine duration
     if motion_count == 10:
         now = datetime.now()
-        dt_string = now.strftime("%d.%m.%Y.%H.%M.%S")
-        directory = dt_string
-        os.mkdir(directory)
-        print(directory)
+        delta = timestamp - now
+        minute, second = divmod(delta.seconds, 60)
+        # if it has been longer than 5 minutes since movement
+        # create new folder
+        # todo this feels messy need to cleanup logic
+        print(second)
+        if second > 5:
+            if directory != "":
+                generate_video()
+            dt_string = now.strftime("%d.%m.%Y.%H.%M.%S")
+            directory = main_path + dt_string
+            os.mkdir(directory)
+            print(directory)
+            timestamp = now
     if motion_count >= 10:
         # todo make this more dynamic for a user
-        main_path = "C:\\Users\\pheig\\Documents\\GitHub\\video\\"
-        path = main_path + directory + "\\frame" + str(motion_count) + ".png"
+        path = directory + "\\frame" + str(motion_count) + ".png"
         print(path)
         cv2.imwrite(path, frame)
 
