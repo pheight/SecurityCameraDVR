@@ -1,4 +1,5 @@
 import cv2
+import threading
 import numpy as np
 from common import Sketcher
 import os
@@ -6,12 +7,13 @@ from datetime import datetime
 import os.path
 import json
 
-
-motion_count = 0
-main_path = "C:\\Users\\pheig\\Documents\\GitHub\\video\\"
 directory = ""
 timestamp = datetime.now()
-
+# User Set Variables
+# todo add ability for end users to set these variables
+sensitivity = 500
+resize = 30
+time_thresh = 10
 
 def connection_string():
     with open("config_test.json") as json_data_file:
@@ -62,10 +64,36 @@ def resize_frame(frame, resize):
     frame = cv2.resize(frame, dim)
     return frame
 
+def motion(motion_count, frame, main_path):
+    # If motion is for longer than a set time begin capturing
+    global timestamp
+    global directory
+    if motion_count == time_thresh:  # 25 frames p/s for 3 seconds of motion
+        now = datetime.now()
+        delta = timestamp - now
+        minute, second = divmod(delta.seconds, 60)
+        # if it has been longer than 5 minutes since movement
+        # create new folder
+        # todo this feels messy need to cleanup logic
+        print(second)
+        if second > 5:
+            # If it is not the first pass then generate video from images
+            if directory != "":
+                threading.Thread(target=generate_video, args=()).start()
+                generate_video()
+            dt_string = now.strftime("%d.%m.%Y.%H.%M.%S")
+            directory = main_path + dt_string
+            os.mkdir(directory)
+            print(directory)
+            timestamp = now
+    if motion_count >= time_thresh:
+        # todo make this more dynamic for a user
+        path = directory + "\\frame" + str(motion_count) + ".jpg"
+        print(path)
+        cv2.imwrite(path, frame)
+
 
 # Video Generating function
-# todo make this async causing video to stutter
-# todo need to figure out how to make longer clips
 def generate_video():
     image_folder = directory # make sure to use your folder
     video_name = 'capture.avi'
@@ -86,118 +114,118 @@ def generate_video():
     # the width, height of first image
     height, width, layers = frame.shape
 
-    fourcc = cv2.VideoWriter_fourcc(*'XVID')
-    video = cv2.VideoWriter(video_name, fourcc, 20.0, (width, height))
+    # todo decide if end user should be able to pick fourcc format
+    fourcc = cv2.VideoWriter_fourcc(*'MP42')
+    video = cv2.VideoWriter(video_name, fourcc, 60.0, (width, height))
 
     # Appending the images to the video one by one
     for image in images:
         video.write(cv2.imread(os.path.join(image_folder, image)))
 
-        # Deallocating memories taken for window creation
+    # Deallocating memories taken for window creation
     cv2.destroyAllWindows()
     video.release()  # releasing the video generated
 
+# main video feed
+def show_stream():
+    print("show stream")
+    connection = connection_string()
+    capture = cv2.VideoCapture(connection)
+    while True:
+        ret, frame = capture.read()
+        # Check for empty frame
+        if frame.size == 0:
+            print('Empty frame')
+            continue
+        frame = resize_frame(frame, resize)
+        cv2.imshow("Main", frame)
 
-# Make empty frame objects using an empty list and np.array
-list = []
-gray2 = np.array(list)
-image_mask = np.array(list)
-
-
-# Establish connection to the webcam
-connection = connection_string()
-cap = cv2.VideoCapture(connection)
-
-# User Set Variables
-# todo add ability for end users to set these variables
-sensitivity = 200
-resize = 30
-
-while True:
-    ret, frame = cap.read()
-    # Check for empty frame
-    if frame.size == 0:
-        print('Empty frame')
-        continue
-
-    frame = resize_frame(frame, resize)
-    
-    # If mask is empty, set mask
-    if image_mask.size == 0:
-        image_mask = create_mask(frame)
-
-    # If the resize parameter has changed after the mask was already set
-    # apply the new resize to the mask
-    if image_mask.shape[0:2] != frame.shape[0:2]:
-        image_mask = cv2.resize(image_mask,(frame.shape[1], frame.shape[0]))
+        if cv2.waitKey(1) & 0xFF == ord('q'):
+            break
+    capture.release()
+    cv2.destroyAllWindows()
 
 
-    # Convert frame to grayscale and apply 
-    # gaussian blur for motion detection
-    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-    gray = cv2.GaussianBlur(gray, (25, 25), 0)
+def main():
+    print("I am starting from main")
+    # Make empty frame objects using an empty list and np.array
+    list = []
+    gray2 = np.array(list)
+    image_mask = np.array(list)
+    # Establish connection to the webcam
+    threading.Thread(target=show_stream, args=()).start()
 
-    # If the initial frame is not set set it
-    if gray2.size == 0:
-        gray2 = gray
-    
-    # Compare frames
-    deltaframe = cv2.absdiff(gray, gray2)
-    
-    threshold = cv2.threshold(deltaframe, 25, 255, cv2.THRESH_BINARY)[1]
-    threshold = cv2.dilate(threshold,None)
-    #threshold = cv2.bitwise_and(threshold, threshold, mask=image_mask)
+    motion_count = 0
+    main_path = "C:\\Users\\pheig\\Documents\\GitHub\\video\\"
 
-    # Draw rectangles around where motion is detected
-    contour, hierarchy = cv2.findContours(threshold, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    if contour:
-        # increment frame count for motion capture
-        motion_count += 1
-    else:
-        # set motion capture back to 0
-        motion_count = 0
-
-
-    # If motion is for longer than 10 frames begin capturing
-    if motion_count == 10:
-        now = datetime.now()
-        delta = timestamp - now
-        minute, second = divmod(delta.seconds, 60)
-        # if it has been longer than 5 minutes since movement
-        # create new folder
-        # todo this feels messy need to cleanup logic
-        print(second)
-        if second > 5:
-            if directory != "":
-                generate_video()
-            dt_string = now.strftime("%d.%m.%Y.%H.%M.%S")
-            directory = main_path + dt_string
-            os.mkdir(directory)
-            print(directory)
-            timestamp = now
-    if motion_count >= 10:
-        # todo make this more dynamic for a user
-        path = directory + "\\frame" + str(motion_count) + ".png"
-        print(path)
-        cv2.imwrite(path, frame)
-
-    for i in contour:
-        # todo - make this a variable that users can set for sensitivity to motion
-        if cv2.contourArea(i) < sensitivity:
+    connection = connection_string()
+    cap = cv2.VideoCapture(connection)
+    while True:
+        ret, frame = cap.read()
+        # Check for empty frame
+        if frame.size == 0:
             continue
 
-        (x, y, w, h) = cv2.boundingRect(i)
-        cv2.rectangle(frame, (x, y), (x + w, y + h), (255, 0, 0), 2)
-    
-    cv2.imshow("Capturing",frame)
-    #cv2.imshow("Threshold", threshold)
-    #cv2.imshow("Mask", image_mask)
+        frame = resize_frame(frame, resize)
 
-    if cv2.waitKey(1) & 0xFF == ord('q'):
-        break
+        # If mask is empty, set mask
+        if image_mask.size == 0:
+            image_mask = create_mask(frame)
 
-cap.release()
-cv2.destroyAllWindows()
+        # If the resize parameter has changed after the mask was already set
+        # apply the new resize to the mask
+        if image_mask.shape[0:2] != frame.shape[0:2]:
+            image_mask = cv2.resize(image_mask, (frame.shape[1], frame.shape[0]))
+
+        # Convert frame to grayscale and apply gaussian blur
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        gray = cv2.GaussianBlur(gray, (25, 25), 0)
+
+        # If the initial frame is not set then set it
+        if gray2.size == 0:
+            gray2 = gray
+
+        # Get the difference between the original frame
+        # and the latest frame
+        deltaframe = cv2.absdiff(gray, gray2)
+
+        threshold = cv2.threshold(deltaframe, 25, 255, cv2.THRESH_BINARY)[1]
+        threshold = cv2.dilate(threshold, None)
+        # threshold = cv2.bitwise_and(threshold, threshold, mask=image_mask)
+
+        # Draw rectangles around where motion is detected
+        contour, hierarchy = cv2.findContours(threshold, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        if contour:
+            # increment frame count for motion capture
+            motion_count += 1
+        else:
+            # set motion capture back to 0
+            motion_count = 0
+
+        motion(motion_count, frame, main_path)
+
+        for i in contour:
+            if cv2.contourArea(i) < sensitivity:
+                continue
+
+            (x, y, w, h) = cv2.boundingRect(i)
+            cv2.rectangle(frame, (x, y), (x + w, y + h), (255, 0, 0), 2)
+
+        cv2.imshow("Capturing", frame)
+        # Process(target=cv2.imshow("Capturing", frame), args=()).start()
+        #cv2.imshow("Threshold", threshold)
+        # cv2.imshow("Mask", image_mask)
+
+        if cv2.waitKey(1) & 0xFF == ord('q'):
+            threading.Thread(target=generate_video, args=()).start()
+            break
+    cap.release()
+    cv2.destroyAllWindows()
+
+
+if __name__ == '__main__':
+    main()
+
 
 
 
