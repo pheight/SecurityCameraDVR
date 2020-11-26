@@ -5,5 +5,11 @@
     "port": "PORT FOR CAMERA",
     "user": "USER",
     "password": "PASSWORD"
+  },
+  "twilio": {
+    "account_sid": "YOUR CLIENT SID FROM TWILIO",
+    "auth_token": "YOUR AUTH TOKEN FROM TWILIO",
+    "twilio_phone": "PHONE # FOR TWILIO ACCOUNT i.e. +15555555555",
+    "phone": "PHONE NUMBER TO SEND MOTION ALERTS TO i.e. +15555555555"
   }
 }

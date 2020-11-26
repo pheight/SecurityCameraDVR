@@ -6,6 +6,7 @@ import os
 from datetime import datetime
 import os.path
 import json
+from twilio.rest import Client
 
 directory = ""
 timestamp = datetime.now()
@@ -14,9 +15,35 @@ timestamp = datetime.now()
 sensitivity = 500
 resize = 30
 time_thresh = 10
+config_file_path = "C:\\Users\\pheig\\Documents\\GitHub\\security\\config_test.json"
+photo = ""
+
+def send_text_message(frame):
+    print("Sending text message")
+    print(photo)
+    with open(config_file_path) as json_data_file:
+        data = json.load(json_data_file)
+        twilio = data['twilio']
+        # /usr/bin/env python
+        # Download the twilio-python library from twilio.com/docs/libraries/python
+        from twilio.rest import Client
+
+        # Find these values at https://twilio.com/user/account
+        # To set up environmental variables, see http://twil.io/secure
+        account_sid = twilio['account_sid']
+        auth_token = twilio['auth_token']
+
+        client = Client(account_sid, auth_token)
+
+        client.api.account.messages.create(
+            to=twilio['phone'],
+            from_=twilio['twilio_phone'],
+            media_url=[photo],
+            body="Motion Detected")
+
 
 def connection_string():
-    with open("config_test.json") as json_data_file:
+    with open(config_file_path) as json_data_file:
         data = json.load(json_data_file)
         cam = data['camera']
         string = cam['url_pre'] + cam['user'] + ':' + cam['password'] + cam['url_post'] + ':' + cam['port']
@@ -90,6 +117,8 @@ def motion(motion_count, frame, main_path):
         # todo make this more dynamic for a user
         path = directory + "\\frame" + str(motion_count) + ".jpg"
         print(path)
+        global photo
+        photo = path
         cv2.imwrite(path, frame)
 
 
@@ -217,6 +246,7 @@ def main():
         # cv2.imshow("Mask", image_mask)
 
         if cv2.waitKey(1) & 0xFF == ord('q'):
+            send_text_message(frame)
             threading.Thread(target=generate_video, args=()).start()
             break
     cap.release()
