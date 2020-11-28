@@ -7,6 +7,8 @@ from datetime import datetime
 import os.path
 import json
 from twilio.rest import Client
+from flask import Flask, request, redirect, send_from_directory
+
 
 directory = ""
 timestamp = datetime.now()
@@ -17,10 +19,13 @@ resize = 30
 time_thresh = 10
 config_file_path = "C:\\Users\\pheig\\Documents\\GitHub\\security\\config_test.json"
 photo = ""
+date_folder = ""
+file_name = ""
+path = '/26.11.2020.10.53.26/'
+filename = 'frame11.jpg'
 
 def send_text_message(frame):
     print("Sending text message")
-    print(photo)
     with open(config_file_path) as json_data_file:
         data = json.load(json_data_file)
         twilio = data['twilio']
@@ -38,7 +43,6 @@ def send_text_message(frame):
         client.api.account.messages.create(
             to=twilio['phone'],
             from_=twilio['twilio_phone'],
-            media_url=[photo],
             body="Motion Detected")
 
 
@@ -95,6 +99,8 @@ def motion(motion_count, frame, main_path):
     # If motion is for longer than a set time begin capturing
     global timestamp
     global directory
+    global date_folder
+    global file_name
     if motion_count == time_thresh:  # 25 frames p/s for 3 seconds of motion
         now = datetime.now()
         delta = timestamp - now
@@ -109,13 +115,16 @@ def motion(motion_count, frame, main_path):
                 threading.Thread(target=generate_video, args=()).start()
                 generate_video()
             dt_string = now.strftime("%d.%m.%Y.%H.%M.%S")
+            date_folder = dt_string
             directory = main_path + dt_string
             os.mkdir(directory)
             print(directory)
             timestamp = now
     if motion_count >= time_thresh:
         # todo make this more dynamic for a user
-        path = directory + "\\frame" + str(motion_count) + ".jpg"
+        file = "frame" + str(motion_count) + ".jpg"
+        file_name = file
+        path = directory + "\\" + file
         print(path)
         global photo
         photo = path
