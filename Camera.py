@@ -6,6 +6,7 @@ import os
 from datetime import datetime
 import os.path
 import json
+from send_email import SendEmail
 from twilio.rest import Client
 from flask import Flask, request, redirect, send_from_directory
 
@@ -186,6 +187,7 @@ def show_stream():
 
 def main():
     print("I am starting from main")
+    SendEmail()
     # Make empty frame objects using an empty list and np.array
     list = []
     gray2 = np.array(list)
